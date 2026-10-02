@@ -1,1 +1,66 @@
+# Greenbar Lab: builds the site from site-bundle.zip and publishes it to GitHub Pages.
+# Save this file in your repository as:  .github/workflows/deploy.yml
+name: Build and publish Greenbar Lab
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for the site bundle
+        run: |
+          if [ ! -f site-bundle.zip ]; then
+            echo "::error::site-bundle.zip is missing. Upload it to the top level of the repository (Add file > Upload files)."
+            exit 1
+          fi
+
+      - name: Unpack the bundle
+        run: unzip -q site-bundle.zip -d bundle
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install JupyterLite
+        run: pip install -r bundle/build/requirements.txt
+
+      - name: Build the notebooks site
+        run: jupyter lite build --contents bundle/notebooks --output-dir dist/jl
+
+      - name: Add the hub, SQL app, and helper files
+        run: |
+          cp -R bundle/site/. dist/
+          touch dist/.nojekyll
+          ls -la dist dist/jl
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
 
